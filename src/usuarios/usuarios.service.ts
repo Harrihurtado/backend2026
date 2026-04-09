@@ -1,58 +1,81 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Usuario } from './usuarios.entity';
+import { Repository } from 'typeorm';
+import { Rol } from '../roles/rol.entity';
+import { CreateUsuarioDto } from './dto/create-usuario.dto';
+import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsuariosService {
-  private usuarios = [
-    { id: 1, nombre: 'Usuario 1', email: 'usuario1@example.com' },
-    { id: 2, nombre: 'Usuario 2', email: 'usuario2@example.com' },
-    { id: 3, nombre: 'Usuario 3', email: 'usuario3@example.com' },
-  ];
+
+  constructor(
+    @InjectRepository(Usuario)
+    private usuarioRepo: Repository<Usuario>,
+
+    @InjectRepository(Rol)
+    private rolRepo: Repository<Rol>,
+  ) {}
 
   findAll() {
-    return this.usuarios;
+    return this.usuarioRepo.find();
   }
 
-  findOne(id: number) {
-    const usuario = this.usuarios.find((u) => u.id === id);
+  async findOne(id: number) {
+    const usuario = await this.usuarioRepo.findOne({ where: { id } });
+
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
     }
-    return usuario;
-  }
-
-  create(usuario: { nombre: string; email: string }) {
-    const nuevoUsuario = {
-      id: this.usuarios.length + 1,
-      ...usuario,
-    };
-    this.usuarios.push(nuevoUsuario);
-    return nuevoUsuario;
-  }
-
-  update(id: number, datosActualizados: { nombre?: string; email?: string }) {
-    const usuario = this.findOne(id);
-
-    if (datosActualizados.nombre !== undefined) {
-      usuario.nombre = datosActualizados.nombre;
-    }
-
-    if (datosActualizados.email !== undefined) {
-      usuario.email = datosActualizados.email;
-    }
 
     return usuario;
   }
 
-  remove(id: number) {
-    const index = this.usuarios.findIndex((u) => u.id === id);
+  async create(dto: CreateUsuarioDto) {
+    const rol = await this.rolRepo.findOne({
+      where: { id: dto.rolId }
+    });
 
-    if (index === -1) {
-      throw new NotFoundException('Usuario no encontrado');
+    if (!rol) {
+      throw new NotFoundException('El rol no existe');
     }
 
-    const usuarioEliminado = this.usuarios[index];
-    this.usuarios.splice(index, 1);
+  const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    return usuarioEliminado;
+  const usuario = this.usuarioRepo.create({
+    nombre: dto.nombre,
+    email: dto.email,
+    password: hashedPassword,
+    rol: rol
+  });
+
+
+    return this.usuarioRepo.save(usuario);
+  }
+
+  async update(id: number, dto: UpdateUsuarioDto) {
+    const usuario = await this.findOne(id);
+
+    if (dto.rolId) {
+      const rol = await this.rolRepo.findOne({
+        where: { id: dto.rolId }
+      });
+
+      if (!rol) {
+        throw new NotFoundException('El rol no existe');
+      }
+
+      usuario.rol = rol;
+    }
+
+    Object.assign(usuario, dto);
+
+    return this.usuarioRepo.save(usuario);
+  }
+
+  async remove(id: number) {
+    const usuario = await this.findOne(id);
+    return this.usuarioRepo.remove(usuario);
   }
 }

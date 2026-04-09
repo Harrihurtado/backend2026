@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Like, Repository } from 'typeorm';
 import { ProductoEntity } from './entities/producto.entity';
 import { CreateProductoDto } from './dto/create-product.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -40,14 +40,24 @@ export class ProductosService {
   }
 
   async update(id: number, updateProductoDto: UpdateProductoDto): Promise<ProductoEntity> {
-    const producto = await this.findOne(id); // lanza 404 si no existe
+    const producto = await this.findOne(id);
     Object.assign(producto, updateProductoDto);
     return await this.productoRepository.save(producto);
   }
 
   async remove(id: number): Promise<{ message: string }> {
-    const producto = await this.findOne(id); // lanza 404 si no existe
+    const producto = await this.findOne(id); 
     await this.productoRepository.remove(producto);
     return { message: `Producto con id ${id} eliminado correctamente` };
   }
+
+  async search(nombre: string): Promise<ProductoEntity[]> {
+  return await this.productoRepository.find({
+    where: {
+      nombre: Like(`%${nombre}%`),
+    },
+    relations: ['categorias'],
+  });
 }
+}
+
